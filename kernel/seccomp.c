@@ -56,61 +56,32 @@
 struct seccomp_filter {
 	atomic_t usage;
 	struct seccomp_filter *prev;
-	unsigned short len;  /* Instruction count */
-	struct sock_filter insns[];
+	struct sk_filter *prog;
 };
 
 /* Limit any path through the tree to 256KB worth of instructions. */
 #define MAX_INSNS_PER_PATH ((1 << 18) / sizeof(struct sock_filter))
 
-/**
- * get_u32 - returns a u32 offset into data
- * @data: a unsigned 64 bit value
- * @index: 0 or 1 to return the first or second 32-bits
- *
- * This inline exists to hide the length of unsigned long.  If a 32-bit
- * unsigned long is passed in, it will be extended and the top 32-bits will be
- * 0. If it is a 64-bit unsigned long, then whatever data is resident will be
- * properly returned.
- *
+/* 
  * Endianness is explicitly ignored and left for BPF program authors to manage
  * as per the specific architecture.
  */
-static inline u32 get_u32(u64 data, int index)
+static void populate_seccomp_data(struct seccomp_data *sd)
 {
-	return ((u32 *)&data)[index];
-}
+       struct task_struct *task = current;
+       struct pt_regs *regs = task_pt_regs(task);
+       unsigned long args[6];
 
-/* Helper for bpf_load below. */
-#define BPF_DATA(_name) offsetof(struct seccomp_data, _name)
-/**
- * bpf_load: checks and returns a pointer to the requested offset
- * @off: offset into struct seccomp_data to load from
- *
- * Returns the requested 32-bits of data.
- * seccomp_check_filter() should assure that @off is 32-bit aligned
- * and not out of bounds.  Failure to do so is a BUG.
- */
-u32 seccomp_bpf_load(int off)
-{
-	struct pt_regs *regs = task_pt_regs(current);
-	if (off == BPF_DATA(nr))
-		return syscall_get_nr(current, regs);
-	if (off == BPF_DATA(arch))
-		return syscall_get_arch();
-	if (off >= BPF_DATA(args[0]) && off < BPF_DATA(args[6])) {
-		unsigned long value;
-		int arg = (off - BPF_DATA(args[0])) / sizeof(u64);
-		int index = !!(off % sizeof(u64));
-		syscall_get_arguments(current, regs, arg, 1, &value);
-		return get_u32(value, index);
-	}
-	if (off == BPF_DATA(instruction_pointer))
-		return get_u32(KSTK_EIP(current), 0);
-	if (off == BPF_DATA(instruction_pointer) + sizeof(u32))
-		return get_u32(KSTK_EIP(current), 1);
-	/* seccomp_check_filter should make this impossible. */
-	BUG();
+       sd->nr = syscall_get_nr(task, regs);
+       sd->arch = syscall_get_arch(task, regs);
+       syscall_get_arguments(task, regs, 0, 6, args);
+       sd->args[0] = args[0];
+       sd->args[1] = args[1];
+       sd->args[2] = args[2];
+       sd->args[3] = args[3];
+       sd->args[4] = args[4];
+       sd->args[5] = args[5];
+       sd->instruction_pointer = KSTK_EIP(task);
 }
 
 /**
@@ -134,59 +105,59 @@ static int seccomp_check_filter(struct sock_filter *filter, unsigned int flen)
 		u32 k = ftest->k;
 
 		switch (code) {
-		case BPF_S_LD_W_ABS:
-			ftest->code = BPF_S_ANC_SECCOMP_LD_W;
+		case BPF_LD | BPF_W | BPF_ABS:
+			ftest->code = BPF_LDX | BPF_W | BPF_ABS;
 			/* 32-bit aligned and not out of bounds. */
 			if (k >= sizeof(struct seccomp_data) || k & 3)
 				return -EINVAL;
 			continue;
-		case BPF_S_LD_W_LEN:
-			ftest->code = BPF_S_LD_IMM;
+		case BPF_LD | BPF_W | BPF_LEN:
+			ftest->code = BPF_LD | BPF_IMM;
 			ftest->k = sizeof(struct seccomp_data);
 			continue;
-		case BPF_S_LDX_W_LEN:
-			ftest->code = BPF_S_LDX_IMM;
+		case BPF_LDX | BPF_W | BPF_LEN:
+			ftest->code = BPF_LDX | BPF_IMM;
 			ftest->k = sizeof(struct seccomp_data);
 			continue;
 		/* Explicitly include allowed calls. */
-		case BPF_S_RET_K:
-		case BPF_S_RET_A:
-		case BPF_S_ALU_ADD_K:
-		case BPF_S_ALU_ADD_X:
-		case BPF_S_ALU_SUB_K:
-		case BPF_S_ALU_SUB_X:
-		case BPF_S_ALU_MUL_K:
-		case BPF_S_ALU_MUL_X:
-		case BPF_S_ALU_DIV_X:
-		case BPF_S_ALU_AND_K:
-		case BPF_S_ALU_AND_X:
-		case BPF_S_ALU_OR_K:
-		case BPF_S_ALU_OR_X:
-		case BPF_S_ALU_XOR_K:
-		case BPF_S_ALU_XOR_X:
-		case BPF_S_ALU_LSH_K:
-		case BPF_S_ALU_LSH_X:
-		case BPF_S_ALU_RSH_K:
-		case BPF_S_ALU_RSH_X:
-		case BPF_S_ALU_NEG:
-		case BPF_S_LD_IMM:
-		case BPF_S_LDX_IMM:
-		case BPF_S_MISC_TAX:
-		case BPF_S_MISC_TXA:
-		case BPF_S_ALU_DIV_K:
-		case BPF_S_LD_MEM:
-		case BPF_S_LDX_MEM:
-		case BPF_S_ST:
-		case BPF_S_STX:
-		case BPF_S_JMP_JA:
-		case BPF_S_JMP_JEQ_K:
-		case BPF_S_JMP_JEQ_X:
-		case BPF_S_JMP_JGE_K:
-		case BPF_S_JMP_JGE_X:
-		case BPF_S_JMP_JGT_K:
-		case BPF_S_JMP_JGT_X:
-		case BPF_S_JMP_JSET_K:
-		case BPF_S_JMP_JSET_X:
+		case BPF_RET | BPF_K:
+		case BPF_RET | BPF_A:
+		case BPF_ALU | BPF_ADD | BPF_K:
+		case BPF_ALU | BPF_ADD | BPF_X:
+		case BPF_ALU | BPF_SUB | BPF_K:
+		case BPF_ALU | BPF_SUB | BPF_X:
+		case BPF_ALU | BPF_MUL | BPF_K:
+		case BPF_ALU | BPF_MUL | BPF_X:
+		case BPF_ALU | BPF_DIV | BPF_K:
+		case BPF_ALU | BPF_DIV | BPF_X:
+		case BPF_ALU | BPF_AND | BPF_K:
+		case BPF_ALU | BPF_AND | BPF_X:
+		case BPF_ALU | BPF_OR | BPF_K:
+		case BPF_ALU | BPF_OR | BPF_X:
+		case BPF_ALU | BPF_XOR | BPF_K:
+		case BPF_ALU | BPF_XOR | BPF_X:
+		case BPF_ALU | BPF_LSH | BPF_K:
+		case BPF_ALU | BPF_LSH | BPF_X:
+		case BPF_ALU | BPF_RSH | BPF_K:
+		case BPF_ALU | BPF_RSH | BPF_X:
+		case BPF_ALU | BPF_NEG:
+		case BPF_LD | BPF_IMM:
+		case BPF_LDX | BPF_IMM:
+		case BPF_MISC | BPF_TAX:
+		case BPF_MISC | BPF_TXA:
+		case BPF_LD | BPF_MEM:
+		case BPF_LDX | BPF_MEM:
+		case BPF_ST:
+		case BPF_STX:
+		case BPF_JMP | BPF_JA:
+		case BPF_JMP | BPF_JEQ | BPF_K:
+		case BPF_JMP | BPF_JEQ | BPF_X:
+		case BPF_JMP | BPF_JGE | BPF_K:
+		case BPF_JMP | BPF_JGE | BPF_X:
+		case BPF_JMP | BPF_JGT | BPF_K:
+		case BPF_JMP | BPF_JGT | BPF_X:
+		case BPF_JMP | BPF_JSET | BPF_K:
+		case BPF_JMP | BPF_JSET | BPF_X:
 			continue;
 		default:
 			return -EINVAL;
@@ -204,13 +175,16 @@ static int seccomp_check_filter(struct sock_filter *filter, unsigned int flen)
 static u32 seccomp_run_filters(int syscall)
 {
 	struct seccomp_filter *f = ACCESS_ONCE(current->seccomp.filter);
+	struct seccomp_data sd;
 	u32 ret = SECCOMP_RET_ALLOW;
 
 	/* Ensure unexpected behavior doesn't result in failing open. */
 	if (unlikely(WARN_ON(f == NULL)))
 		return SECCOMP_RET_KILL;
 
-/* Make sure cross-thread synced filter points somewhere sane. */
+	populate_seccomp_data(&sd);
+
+	/* Make sure cross-thread synced filter points somewhere sane. */
 	smp_read_barrier_depends();
 
 	/*
@@ -218,14 +192,13 @@ static u32 seccomp_run_filters(int syscall)
 	 * value always takes priority (ignoring the DATA).
 	 */
 	for (; f; f = f->prev) {
-		u32 cur_ret = sk_run_filter(NULL, f->insns);
+		u32 cur_ret = SK_RUN_FILTER(f->prog, (void *)&sd);
 
 		if ((cur_ret & SECCOMP_RET_ACTION) < (ret & SECCOMP_RET_ACTION))
 			ret = cur_ret;
 	}
 	return ret;
 }
-
 #endif /* CONFIG_SECCOMP_FILTER */
 
 static inline bool seccomp_may_assign_mode(unsigned long seccomp_mode)
@@ -338,26 +311,26 @@ static inline void seccomp_sync_threads(void)
 		 * allows a put before the assignment.)
 		 */
 		put_seccomp_filter(thread);
-		smp_store_release(&thread->seccomp.filter,
-				  caller->seccomp.filter);
-
-		/*
-		 * Don't let an unprivileged task work around
-		 * the no_new_privs restriction by creating
-		 * a thread that sets it up, enters seccomp,
-		 * then dies.
-		 */
-		if (task_no_new_privs(caller))
-			task_set_no_new_privs(thread);
-
+		smp_mb();
+		ACCESS_ONCE(thread->seccomp.filter) = caller->seccomp.filter;
 		/*
 		 * Opt the other thread into seccomp if needed.
 		 * As threads are considered to be trust-realm
 		 * equivalent (see ptrace_may_access), it is safe to
 		 * allow one thread to transition the other.
 		 */
-		if (thread->seccomp.mode == SECCOMP_MODE_DISABLED)
+		if (thread->seccomp.mode == SECCOMP_MODE_DISABLED) {
+			/*
+			 * Don't let an unprivileged task work around
+			 * the no_new_privs restriction by creating
+			 * a thread that sets it up, enters seccomp,
+			 * then dies.
+			 */
+			if (task_no_new_privs(caller))
+				task_set_no_new_privs(thread);
+
 			seccomp_assign_mode(thread, SECCOMP_MODE_FILTER);
+		}
 	}
 }
 
@@ -367,11 +340,13 @@ static inline void seccomp_sync_threads(void)
  *
  * Returns filter on success or an ERR_PTR on failure.
  */
-static struct seccomp_filter * seccomp_prepare_filter(struct sock_fprog *fprog)
+static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 {
 	struct seccomp_filter *filter;
 	unsigned long fp_size = fprog->len * sizeof(struct sock_filter);
 	unsigned long total_insns = fprog->len;
+        struct sock_filter *fp;
+        int new_len;
 	long ret;
 
 	if (fprog->len == 0 || fprog->len > BPF_MAXINSNS)
@@ -379,7 +354,7 @@ static struct seccomp_filter * seccomp_prepare_filter(struct sock_fprog *fprog)
 	BUG_ON(INT_MAX / fprog->len < sizeof(struct sock_filter));
 
 	for (filter = current->seccomp.filter; filter; filter = filter->prev)
-		total_insns += filter->len + 4;  /* include a 4 instr penalty */
+		total_insns += filter->prog->len + 4;  /* include a 4 instr penalty */
 	if (total_insns > MAX_INSNS_PER_PATH)
 		return ERR_PTR(-ENOMEM);
 
@@ -389,37 +364,64 @@ static struct seccomp_filter * seccomp_prepare_filter(struct sock_fprog *fprog)
 	 * This avoids scenarios where unprivileged tasks can affect the
 	 * behavior of privileged children.
 	 */
-	if (!task_no_new_privs(current)	 &&
+	if (!task_no_new_privs(current) &&
 	    security_capable_noaudit(current_cred(), current_user_ns(),
 				     CAP_SYS_ADMIN) != 0)
 		return ERR_PTR(-EACCES);
 
-	/* Allocate a new seccomp_filter */
-	filter = kzalloc(sizeof(struct seccomp_filter) + fp_size,
-			 GFP_KERNEL|__GFP_NOWARN);
-	if (!filter)
-		return ERR_PTR(-ENOMEM);
-	atomic_set(&filter->usage, 1);
-	filter->len = fprog->len;
+        fp = kzalloc(fp_size, GFP_KERNEL|__GFP_NOWARN);
+        if (!fp)
+		return ERR_PTR(-ENOMEM);;
 
 	/* Copy the instructions from fprog. */
 	ret = -EFAULT;
-	if (copy_from_user(filter->insns, fprog->filter, fp_size))
-		goto fail;
+        if (copy_from_user(fp, fprog->filter, fp_size))
+                goto free_prog;
 
 	/* Check and rewrite the fprog via the skb checker */
-	ret = sk_chk_filter(filter->insns, filter->len);
+	ret = sk_chk_filter(fp, fprog->len);
 	if (ret)
-		goto fail;
+		goto free_prog;
 
 	/* Check and rewrite the fprog for seccomp use */
-	ret = seccomp_check_filter(filter->insns, filter->len);
-	if (ret)
-		goto fail;
+        ret = seccomp_check_filter(fp, fprog->len);
+        if (ret)
+                goto free_prog;
+ 
+        /* Convert 'sock_filter' insns to 'sock_filter_int' insns */
+        ret = sk_convert_filter(fp, fprog->len, NULL, &new_len);
+        if (ret)
+                goto free_prog;
+ 
+        /* Allocate a new seccomp_filter */
+	filter = kzalloc(sizeof(struct seccomp_filter),
+                         GFP_KERNEL|__GFP_NOWARN);
+        if (!filter)
+                goto free_prog;
+ 
+	filter->prog = kzalloc(sk_filter_size(new_len),
+			      GFP_KERNEL|__GFP_NOWARN);
+	if (!filter->prog)
+		goto free_filter;
+
+       ret = sk_convert_filter(fp, fprog->len, filter->prog->insnsi, &new_len);
+       if (ret)
+               goto free_filter_prog;
+        kfree(fp);
+
+	atomic_set(&filter->usage, 1);
+	filter->prog->len = new_len;
+
+	sk_filter_select_runtime(filter->prog);
 
 	return filter;
-fail:
+
+free_filter_prog:
+       kfree(filter->prog);
+free_filter:
 	kfree(filter);
+free_prog:
+	kfree(fp)
 	return ERR_PTR(ret);
 }
 
@@ -469,9 +471,9 @@ static long seccomp_attach_filter(unsigned int flags,
 	assert_spin_locked(&current->sighand->siglock);
 
 	/* Validate resulting filter length. */
-	total_insns = filter->len;
+	total_insns = filter->prog->len;
 	for (walker = current->seccomp.filter; walker; walker = walker->prev)
-		total_insns += walker->len + 4;  /* 4 instr penalty */
+		total_insns += walker->prog->len + 4;  /* 4 instr penalty */
 	if (total_insns > MAX_INSNS_PER_PATH)
 		return -ENOMEM;
 
@@ -523,6 +525,7 @@ void put_seccomp_filter(struct task_struct *tsk)
 	while (orig && atomic_dec_and_test(&orig->usage)) {
 		struct seccomp_filter *freeme = orig;
 		orig = orig->prev;
+		sk_filter_free(freeme->prog);
 		seccomp_filter_free(freeme);
 	}
 }
@@ -542,7 +545,7 @@ static void seccomp_send_sigsys(int syscall, int reason)
 	info.si_code = SYS_SECCOMP;
 	info.si_call_addr = (void __user *)KSTK_EIP(current);
 	info.si_errno = reason;
-	info.si_arch = syscall_get_arch();
+	info.si_arch = syscall_get_arch(current, task_pt_regs(current));
 	info.si_syscall = syscall;
 	force_sig_info(SIGSYS, &info, current);
 }
@@ -576,7 +579,7 @@ int __secure_computing(int this_syscall)
 	 * been seen after TIF_SECCOMP was seen.
 	 */
 	rmb();
-	
+
 	switch (current->seccomp.mode) {
 	case SECCOMP_MODE_STRICT:
 		syscall = mode1_syscalls;
@@ -594,27 +597,27 @@ int __secure_computing(int this_syscall)
 #ifdef CONFIG_SECCOMP_FILTER
 	case SECCOMP_MODE_FILTER: {
 		int data;
-		struct pt_regs *regs = task_pt_regs(current);
 		ret = seccomp_run_filters(this_syscall);
 		data = ret & SECCOMP_RET_DATA;
 		ret &= SECCOMP_RET_ACTION;
 		switch (ret) {
 		case SECCOMP_RET_ERRNO:
 			/* Set the low-order 16-bits as a errno. */
-			syscall_set_return_value(current, regs,
+			syscall_set_return_value(current, task_pt_regs(current),
 						 -data, 0);
 			goto skip;
 		case SECCOMP_RET_TRAP:
 			/* Show the handler the original registers. */
-			syscall_rollback(current, regs);
+			syscall_rollback(current, task_pt_regs(current));
 			/* Let the filter pass back 16 bits of data. */
 			seccomp_send_sigsys(this_syscall, data);
 			goto skip;
 		case SECCOMP_RET_TRACE:
 			/* Skip these calls if there is no tracer. */
 			if (!ptrace_event_enabled(current, PTRACE_EVENT_SECCOMP)) {
-				syscall_set_return_value(current, regs,
-							 -ENOSYS, 0);
+				/* Make sure userspace sees an ENOSYS. */
+				syscall_set_return_value(current,
+					task_pt_regs(current), -ENOSYS, 0);
 				goto skip;
 			}
 			/* Allow the BPF to provide the event message */
@@ -627,9 +630,6 @@ int __secure_computing(int this_syscall)
 			 */
 			if (fatal_signal_pending(current))
 				break;
-			if (syscall_get_nr(current, regs) < 0)
-				goto skip;  /* Explicit request to skip. */
-
 			return 0;
 		case SECCOMP_RET_ALLOW:
 			return 0;
@@ -712,7 +712,7 @@ static long seccomp_set_mode_filter(unsigned int flags,
 	struct seccomp_filter *prepared = NULL;
 	long ret = -EINVAL;
 
-		/* Validate flags. */
+	/* Validate flags. */
 	if (flags & ~SECCOMP_FILTER_FLAG_MASK)
 		return -EINVAL;
 
@@ -737,8 +737,7 @@ static long seccomp_set_mode_filter(unsigned int flags,
 	ret = seccomp_attach_filter(flags, prepared);
 	if (ret)
 		goto out;
-
-		/* Do not free the successfully attached filter. */
+	/* Do not free the successfully attached filter. */
 	prepared = NULL;
 
 	seccomp_assign_mode(current, seccomp_mode);
@@ -813,4 +812,3 @@ long prctl_set_seccomp(unsigned long seccomp_mode, char __user *filter)
 	/* prctl interface doesn't have flags, so they are always zero. */
 	return do_seccomp(op, 0, uargs);
 }
-
