@@ -53,9 +53,10 @@
 #define SEEN_DATA		(1 << (BPF_MEMWORDS + 3))
 
 #define FLAG_NEED_X_RESET	(1 << 0)
+#define FLAG_IMM_OVERFLOW	(1 << 1)
 
 struct jit_ctx {
-	const struct sk_filter *skf;
+	const struct bpf_prog *skf;
 	unsigned idx;
 	unsigned prologue_bytes;
 	int ret0_fp_idx;
@@ -281,6 +282,15 @@ static u16 imm_offset(u32 k, struct jit_ctx *ctx)
 	/* PC in ARM mode == address of the instruction + 8 */
 	imm = offset - (8 + ctx->idx * 4);
 
+	if (imm & ~0xfff) {
+		/*
+		 * literal pool is too far, signal it into flags. we
+		 * can only detect it on the second pass unfortunately.
+		 */
+		ctx->flags |= FLAG_IMM_OVERFLOW;
+		return 0;
+	}
+
 	return imm;
 }
 
@@ -461,7 +471,7 @@ static inline void update_on_xread(struct jit_ctx *ctx)
 static int build_body(struct jit_ctx *ctx)
 {
 	void *load_func[] = {jit_get_skb_b, jit_get_skb_h, jit_get_skb_w};
-	const struct sk_filter *prog = ctx->skf;
+	const struct bpf_prog *prog = ctx->skf;
 	const struct sock_filter *inst;
 	unsigned i, load_order, off, condt;
 	int imm12;
@@ -843,6 +853,14 @@ b_epilogue:
 		default:
 			return -1;
 		}
+
+		if (ctx->flags & FLAG_IMM_OVERFLOW)
+			/*
+			 * this instruction generated an overflow when
+			 * trying to access the literal pool, so
+			 * delegate this filter to the kernel interpreter.
+			 */
+			return -1;
 	}
 
 	/* compute offsets only during the first pass */
@@ -853,7 +871,7 @@ b_epilogue:
 }
 
 
-void bpf_jit_compile(struct sk_filter *fp)
+void bpf_jit_compile(struct bpf_prog *fp)
 {
 	struct jit_ctx ctx;
 	unsigned tmp_idx;
@@ -895,14 +913,20 @@ void bpf_jit_compile(struct sk_filter *fp)
 #endif
 
 	alloc_size = 4 * ctx.idx;
-	ctx.target = module_alloc(max(sizeof(struct work_struct),
-				      alloc_size));
+	ctx.target = module_alloc(alloc_size);
 	if (unlikely(ctx.target == NULL))
 		goto out;
 
 	ctx.idx = 0;
 	build_prologue(&ctx);
-	build_body(&ctx);
+	if (build_body(&ctx) < 0) {
+#if __LINUX_ARM_ARCH__ < 7
+		if (ctx.imm_count)
+			kfree(ctx.imms);
+#endif
+		module_free(NULL, ctx.target);
+		goto out;
+	}
 	build_epilogue(&ctx);
 
 	flush_icache_range((u32)ctx.target, (u32)(ctx.target + ctx.idx));
@@ -913,28 +937,19 @@ void bpf_jit_compile(struct sk_filter *fp)
 #endif
 
 	if (bpf_jit_enable > 1)
-		/* there are 2 passes here */
-		bpf_jit_dump(fp->len, alloc_size, 2, ctx.target);
+		print_hex_dump(KERN_INFO, "BPF JIT code: ",
+			       DUMP_PREFIX_ADDRESS, 16, 4, ctx.target,
+			       alloc_size, false);
 
 	fp->bpf_func = (void *)ctx.target;
+	fp->jited = 1;
 out:
 	kfree(ctx.offsets);
 	return;
 }
 
-static void bpf_jit_free_worker(struct work_struct *work)
+void bpf_jit_free(struct bpf_prog *fp)
 {
-	module_free(NULL, work);
-}
-
-void bpf_jit_free(struct sk_filter *fp)
-{
-	struct work_struct *work;
-
-	if (fp->bpf_func != sk_run_filter) {
-		work = (struct work_struct *)fp->bpf_func;
-
-		INIT_WORK(work, bpf_jit_free_worker);
-		schedule_work(work);
-	}
+	if (fp->jited)
+		module_free(NULL, fp->bpf_func);
 }
