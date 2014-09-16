@@ -394,6 +394,7 @@ static void *persistent_ram_vmap(phys_addr_t start, size_t size,
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
 
 #ifndef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+
 	if (memtype)
 		prot = pgprot_noncached(PAGE_KERNEL);
 	else
