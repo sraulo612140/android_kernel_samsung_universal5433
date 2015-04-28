@@ -152,6 +152,10 @@ struct tcp_sock {
 	u32	copied_seq;	/* Head of yet unread data		*/
 	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
  	u32	snd_nxt;	/* Next sequence we send		*/
+	u64 bytes_acked;
+	u64 bytes_received;
+	u32 segs_in;
+	u32 segs_out;
 
  	u32	snd_una;	/* First byte we want an ack for	*/
  	u32	snd_sml;	/* Last byte of the most recently transmitted small packet */
