@@ -444,7 +444,7 @@ config PROBE_EVENTS
 
 config BPF_EVENTS
 	depends on BPF_SYSCALL
-	depends on KPROBE_EVENT
+	depends on KPROBE_EVENT && PERF_EVENTS
 	bool
 	default y
 	help
