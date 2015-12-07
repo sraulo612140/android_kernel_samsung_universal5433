@@ -1331,9 +1331,10 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 		sk_tx_queue_clear(sk);
 
 // ------------- START of KNOX_VPN ------------------//
-        sk->knox_uid = current->cred->uid;
-        sk->knox_pid = current->tgid;
+		sk->knox_uid = current->cred->uid;
+		sk->knox_pid = current->tgid;
 // ------------- END of KNOX_VPN -------------------//
+		cgroup_sk_alloc(&sk->skcg);
 	}
 
 	return sk;
@@ -1356,6 +1357,7 @@ static void sk_prot_free(struct proto *prot, struct sock *sk)
 	owner = prot->owner;
 	slab = prot->slab;
 
+	cgroup_sk_free(sk->skcg);
 	security_sk_free(sk);
 	if (slab != NULL)
 		kmem_cache_free(slab, sk);
