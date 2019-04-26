@@ -140,6 +140,7 @@ struct net;
 
 typedef __u32 __bitwise __portpair;
 typedef __u64 __bitwise __addrpair;
+struct bpf_sk_storage;
 
 /**
  *	struct sock_common - minimal network layer representation of sockets
@@ -415,11 +416,14 @@ struct sock {
 	pid_t			knox_pid;
 	void			(*sk_state_change)(struct sock *sk);
 	void			(*sk_data_ready)(struct sock *sk, int bytes);
-	void			(*sk_write_space)(struct sock *sk);
+void			(*sk_write_space)(struct sock *sk);
 	void			(*sk_error_report)(struct sock *sk);
 	int			(*sk_backlog_rcv)(struct sock *sk,
 						  struct sk_buff *skb);
 	void                    (*sk_destruct)(struct sock *sk);
+#ifdef CONFIG_BPF_SYSCALL
+	struct bpf_sk_storage __rcu	*sk_bpf_storage;
+#endif
 };
 
 /*
