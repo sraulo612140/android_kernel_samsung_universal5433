@@ -523,15 +523,13 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 	struct usb_request *req;
 	int r = count, xfer;
 	int ret = 0;
-	size_t len;
 
 	DBG(cdev, "mtp_read(%d)\n", count);
 
 	if (dev == NULL || dev->ep_out == NULL)
 		 return -ENODEV;
 
-	len = usb_ep_align_maybe(cdev->gadget, dev->ep_out, count);
-	if (len > MTP_BULK_BUFFER_SIZE)
+	if (count > MTP_BULK_BUFFER_SIZE)
 		return -EINVAL;
 
 	/* we will block until we're online */
@@ -555,7 +553,7 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 requeue_req:
 	/* queue a request */
 	req = dev->rx_req[0];
-	req->length = len;
+	req->length = count;
 	dev->rx_done = 0;
 	set_read_req_length(req);
 	ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
