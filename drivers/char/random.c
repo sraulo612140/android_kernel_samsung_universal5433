@@ -413,6 +413,21 @@ static DECLARE_WAIT_QUEUE_HEAD(random_write_wait);
 static DECLARE_WAIT_QUEUE_HEAD(urandom_init_wait);
 static struct fasync_struct *fasync;
 
+#if 0
+static bool debug;
+module_param(debug, bool, 0644);
+#define DEBUG_ENT(fmt, arg...) do { \
+	if (debug) \
+		printk(KERN_DEBUG "random %04d %04d %04d: " \
+		fmt,\
+		input_pool.entropy_count,\
+		blocking_pool.entropy_count,\
+		nonblocking_pool.entropy_count,\
+		## arg); } while (0)
+#else
+#define DEBUG_ENT(fmt, arg...) do {} while (0)
+#endif
+
 /**********************************************************************
  *
  * OS independent entropy store.   Here are the functions which handle
@@ -1216,7 +1231,7 @@ void rand_initialize_disk(struct gendisk *disk)
 static ssize_t
 _random_read(int nonblock, char __user *buf, size_t nbytes)
 {
-	ssize_t n;
+	ssize_t n, retval = 0, count = 0;
 
 	if (nbytes == 0)
 		return 0;
@@ -1248,7 +1263,7 @@ _random_read(int nonblock, char __user *buf, size_t nbytes)
 
 			wait_event_interruptible(random_read_wait,
 				input_pool.entropy_count >=
-						 random_read_wakeup_thresh);
+						 random_read_wakeup_bits);
 
 			DEBUG_ENT("awake\n");
 
@@ -1425,6 +1440,26 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 	return urandom_read(NULL, buf, count, NULL);
 }
 
+/***************************************************************
+ * Random UUID interface
+ *
+ * Used here for a Boot ID, but can be useful for other kernel
+ * drivers.
+ ***************************************************************/
+
+/*
+ * Generate random UUID
+ */
+void generate_random_uuid(unsigned char uuid_out[16])
+{
+	get_random_bytes(uuid_out, 16);
+	/* Set UUID version to 4 --- truly random generation */
+	uuid_out[6] = (uuid_out[6] & 0x0F) | 0x40;
+	/* Set the UUID variant to DCE */
+	uuid_out[8] = (uuid_out[8] & 0x3F) | 0x80;
+}
+EXPORT_SYMBOL(generate_random_uuid);
+
 /********************************************************************
  *
  * Sysctl interface
@@ -1547,7 +1582,7 @@ ctl_table random_table[] = {
 
 static u32 random_int_secret[MD5_MESSAGE_BYTES / 4] ____cacheline_aligned;
 
-static int __init random_int_secret_init(void)
+int random_int_secret_init(void)
 {
 	get_random_bytes(random_int_secret, sizeof(random_int_secret));
 	return 0;

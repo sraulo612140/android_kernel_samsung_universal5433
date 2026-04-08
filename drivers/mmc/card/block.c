@@ -1362,7 +1362,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 		if (brq->sbc.error || brq->cmd.error || brq->stop.error ||
 		    brq->data.error) {
 			switch (mmc_blk_cmd_recovery(card, req,
-							brq, &ecc_err)) {
+							brq, &ecc_err, &gen_err)) {
 			case ERR_RETRY:
 				return MMC_BLK_RETRY;
 			case ERR_ABORT:
@@ -1424,6 +1424,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 					if (err)
 						return MMC_BLK_ABORT;
 				}
+			}
 
 			if (status & R1_ERROR) {
 				pr_err("%s: %s: general error sending status command, card status %#x\n",
@@ -2404,7 +2405,6 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 	struct mmc_host *host = card->host;
 	unsigned int cmd_flags = req ? req->cmd_flags : 0;
 	unsigned long flags;
-	unsigned int cmd_flags = req ? req->cmd_flags : 0;
 
 	if (card->ext_csd.cmdq_mode_en) {
 		mmc_claim_host(card->host);
