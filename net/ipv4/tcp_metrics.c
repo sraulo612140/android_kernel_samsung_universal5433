@@ -208,8 +208,7 @@ static struct tcp_metrics_block *__tcp_get_metrics_req(struct request_sock *req,
 						       struct dst_entry *dst)
 {
 	struct tcp_metrics_block *tm;
-	struct inetpeer_addr_base base_addr = {{.a4 = 0, .a6 = {0, 0, 0, 0}}};
-	struct inetpeer_addr addr = {base_addr, 0};
+	struct inetpeer_addr addr;
 	unsigned int hash;
 	struct net *net;
 
@@ -243,8 +242,7 @@ static struct tcp_metrics_block *__tcp_get_metrics_tw(struct inet_timewait_sock 
 {
 	struct inet6_timewait_sock *tw6;
 	struct tcp_metrics_block *tm;
-	struct inetpeer_addr_base base_addr = {{.a4 = 0, .a6 = {0, 0, 0, 0}}};
-	struct inetpeer_addr addr = {base_addr, 0};
+	struct inetpeer_addr addr;
 	unsigned int hash;
 	struct net *net;
 
