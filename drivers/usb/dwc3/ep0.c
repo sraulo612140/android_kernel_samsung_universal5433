@@ -857,8 +857,9 @@ static void dwc3_ep0_complete_data(struct dwc3 *dwc,
 	    (ur->length % ep0->endpoint.maxpacket == 0)) {
 		int ret;
 
-		ret = dwc3_ep0_start_trans(dwc, epnum, dwc->ctrl_req_addr, 0,
+		dwc3_ep0_prepare_one_trb(dwc, epnum, dwc->ctrl_req_addr, 0,
 				DWC3_TRBCTL_CONTROL_DATA);
+		ret = dwc3_ep0_start_trans(dwc, epnum);
 		WARN_ON(ret < 0);
 		dwc->ep0_zlp_sent = 1;
 		return;
