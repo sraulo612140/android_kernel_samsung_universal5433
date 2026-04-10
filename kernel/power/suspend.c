@@ -136,7 +136,6 @@ static int suspend_prepare(suspend_state_t state)
 	if (error)
 		goto Finish;
 
-#ifdef CONFIG_PM_SYNC_BEFORE_SUSPEND
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
 	if (intr_sync(NULL)) {
 		printk("canceled.\n");
@@ -144,7 +143,6 @@ static int suspend_prepare(suspend_state_t state)
 		goto Finish;
 	}
 	printk("done.\n");
-#endif
 
 	error = suspend_freeze_processes();
 	if (!error)
