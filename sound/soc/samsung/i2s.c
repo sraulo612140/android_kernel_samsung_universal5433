@@ -1158,8 +1158,10 @@ static int i2s_suspend(struct snd_soc_dai *dai)
 {
 	struct i2s_dai *i2s = to_info(dai);
 
-	i2s_cfg_gpio(i2s, "idle");
-	i2s_reg_save(i2s);
+	if (dai->active) {
+		i2s_cfg_gpio(i2s, "idle");
+		i2s_reg_save(i2s);
+	}
 
 	return 0;
 }
@@ -1168,8 +1170,10 @@ static int i2s_resume(struct snd_soc_dai *dai)
 {
 	struct i2s_dai *i2s = to_info(dai);
 
-	i2s_reg_restore(i2s);
-	i2s_cfg_gpio(i2s, "default");
+	if (dai->active) {
+		i2s_reg_restore(i2s);
+		i2s_cfg_gpio(i2s, "default");
+	}
 
 	return 0;
 }
