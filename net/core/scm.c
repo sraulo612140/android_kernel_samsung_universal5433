@@ -46,7 +46,7 @@ static __inline__ int scm_check_creds(struct ucred *creds)
 {
 	const struct cred *cred = current_cred();
 
-    if ((creds->pid == task_tgid_vnr(current)->user_ns || capable(CAP_SYS_ADMIN)) &&
+    if ((creds->pid == task_tgid_vnr(current) || capable(CAP_SYS_ADMIN)) &&
 	    ((creds->uid == cred->uid   || creds->uid == cred->euid ||
 	      creds->uid == cred->suid) || capable(CAP_SETUID)) &&
 	    ((creds->gid == cred->gid   || creds->gid == cred->egid ||
