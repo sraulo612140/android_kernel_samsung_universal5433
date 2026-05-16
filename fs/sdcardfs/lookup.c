@@ -275,8 +275,13 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	lower_dir_mnt = lower_parent_path->mnt;
 
 	/* Use vfs_path_lookup to check if the dentry exists or not */
-	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name->name, 0,
+	if (sbi->options.lower_fs == LOWER_FS_EXT4) {
+		err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name->name,
+				LOOKUP_CASE_INSENSITIVE, &lower_path);
+	} else if (sbi->options.lower_fs == LOWER_FS_FAT) {
+		err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name->name, 0,
 				&lower_path);
+	}
 	/* check for other cases */
 	if (err == -ENOENT) {
 		struct file *file;
@@ -312,7 +317,6 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 			err = -ENOENT;
 put_name:
 		__putname(buffer.name);
-	}
 
 	/* no error: handle positive dentries */
 	if (!err) {

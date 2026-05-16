@@ -43,6 +43,7 @@ static const match_table_t sdcardfs_tokens = {
 	{Opt_fsgid, "fsgid=%u"},
 	{Opt_gid, "gid=%u"},
 	{Opt_debug, "debug"},
+	{Opt_lower_fs, "lower_fs=%s"},
 	{Opt_mask, "mask=%u"},
 	{Opt_userid, "userid=%d"},
 	{Opt_multiuser, "multiuser"},
@@ -68,6 +69,8 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 	opts->multiuser = false;
 	opts->fs_user_id = 0;
 	vfsopts->gid = 0;
+	/* by default, we use LOWER_FS_EXT4 as lower fs type */
+	opts->lower_fs = LOWER_FS_EXT4;
 	/* by default, 0MB is reserved */
 	opts->reserved_mb = 0;
 	/* by default, gid derivation is off */
@@ -118,6 +121,18 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 			break;
 		case Opt_multiuser:
 			opts->multiuser = true;
+			break;
+		case Opt_lower_fs:
+			string_option = match_strdup(&args[0]);
+			if (!strcmp("ext4", string_option)) {
+				opts->lower_fs = LOWER_FS_EXT4;
+			} else if (!strcmp("fat", string_option)) {
+				opts->lower_fs = LOWER_FS_FAT;
+			} else {
+				kfree(string_option);
+				goto invalid_option;
+			}
+			kfree(string_option);
 			break;
 		case Opt_reserved_mb:
 			if (match_int(&args[0], &option))

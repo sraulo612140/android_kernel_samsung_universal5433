@@ -115,6 +115,11 @@ typedef enum {
 	PERM_ANDROID_PACKAGE_CACHE,
 } perm_t;
 
+typedef enum {
+	LOWER_FS_EXT4,
+	LOWER_FS_FAT,
+} lower_fs_t;
+
 struct sdcardfs_sb_info;
 struct sdcardfs_mount_options;
 struct sdcardfs_inode_info;
@@ -193,6 +198,7 @@ struct sdcardfs_mount_options {
 	uid_t fs_low_uid;
 	gid_t fs_low_gid;
 	userid_t fs_user_id;
+	lower_fs_t lower_fs;
 	bool multiuser;
 	bool gid_derivation;
 	bool default_normal;
