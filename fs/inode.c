@@ -169,17 +169,6 @@ int inode_init_always(struct super_block *sb, struct inode *inode)
 	mapping->private_data = NULL;
 	mapping->backing_dev_info = &default_backing_dev_info;
 	mapping->writeback_index = 0;
-#if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
-	mapping->iv = NULL;
-	mapping->key = NULL;
-	mapping->key_length = 0;
-	mapping->alg = NULL;
-	mapping->sensitive_data_index = 0;
-	mapping->hash_tfm = NULL;
-#ifdef CONFIG_CRYPTO_FIPS
-	mapping->cc_enable = 0;
-#endif
-#endif
 #ifdef CONFIG_SDP
 	mapping->userid = 0;
 #endif
@@ -524,7 +513,6 @@ void clear_inode(struct inode *inode)
 	 */
 	spin_lock_irq(&inode->i_data.tree_lock);
 	BUG_ON(inode->i_data.nrpages);
-	BUG_ON(inode->i_data.nrshadows);
 	spin_unlock_irq(&inode->i_data.tree_lock);
 	BUG_ON(!list_empty(&inode->i_data.private_list));
 	BUG_ON(!(inode->i_state & I_FREEING));
@@ -570,7 +558,8 @@ static void evict(struct inode *inode)
 	if (op->evict_inode) {
 		op->evict_inode(inode);
 	} else {
-		truncate_inode_pages_final(&inode->i_data);
+		if (inode->i_data.nrpages)
+			truncate_inode_pages(&inode->i_data, 0);
 		clear_inode(inode);
 	}
 	if (S_ISBLK(inode->i_mode) && inode->i_bdev)

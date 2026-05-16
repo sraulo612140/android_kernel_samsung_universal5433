@@ -37,7 +37,6 @@ int iterate_dir(struct file *file, struct dir_context *ctx)
 
 	res = -ENOENT;
 	if (!IS_DEADDIR(inode)) {
-		ctx->romnt = (inode->i_sb->s_flags & MS_RDONLY);
 		if (file->f_op->iterate) {
 			ctx->pos = file->f_pos;
 			res = file->f_op->iterate(file, ctx);
@@ -53,7 +52,6 @@ out:
 	return res;
 }
 EXPORT_SYMBOL(iterate_dir);
-
 
 /*
  * Traditional linux readdir() handling..
@@ -74,7 +72,7 @@ struct old_linux_dirent {
 };
 
 struct readdir_callback {
-	struct dir_context ctx
+	struct dir_context ctx;
 	struct old_linux_dirent __user * dirent;
 	int result;
 };
