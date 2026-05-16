@@ -109,10 +109,6 @@
 
 #define HEAVY_TASK_LOAD_THRESHOLD 1000
 
-#ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
-#endif
-
 static atomic_t __su_instances;
 
 int su_instances(void)
