@@ -2534,7 +2534,7 @@ static int cgroup_rename(struct inode *old_dir, struct dentry *old_dentry,
 	if (!name)
 		return -ENOMEM;
 
-	ret = simple_rename(old_dir, old_dentry, new_dir, new_dentry);
+	ret = simple_rename(old_dir, old_dentry, new_dir, new_dentry, 0);
 	if (ret) {
 		kfree(name);
 		return ret;
@@ -5387,7 +5387,7 @@ static struct cgroupfs_root *findBpfCg(void){
 	struct cgroupfs_root *root;
 
 	for_each_active_root(root)
-		if(root->subsys_bits == 0)
+		if(root->subsys_mask == 0)
 			return root;
 
 	return NULL;
