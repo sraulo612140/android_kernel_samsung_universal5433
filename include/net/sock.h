@@ -1670,6 +1670,8 @@ extern void sock_init_data(struct socket *sock, struct sock *sk);
 
 extern void sk_filter_release_rcu(struct rcu_head *rcu);
 
+extern int sysctl_optmem_max;
+
 /**
  *	sk_filter_release - release a socket filter
  *	@fp: filter to remove
@@ -1683,6 +1685,11 @@ static inline void sk_filter_release(struct sk_filter *fp)
 		call_rcu(&fp->rcu, sk_filter_release_rcu);
 }
 
+static inline unsigned int sk_filter_len(const struct sk_filter *fp)
+{
+	return bpf_prog_size(fp->prog->len);
+}
+
 static inline void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp)
 {
 	unsigned int size = sk_filter_len(fp);
@@ -1691,10 +1698,21 @@ static inline void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp)
 	sk_filter_release(fp);
 }
 
-static inline void sk_filter_charge(struct sock *sk, struct sk_filter *fp)
+/* try to charge the socket memory if there is space available
+ * return true on success
+ */
+static inline bool sk_filter_charge(struct sock *sk, struct sk_filter *fp)
 {
-	atomic_inc(&fp->refcnt);
-	atomic_add(sk_filter_len(fp), &sk->sk_omem_alloc);
+	unsigned int size = sk_filter_len(fp);
+
+	/* same check as in sock_kmalloc() */
+	if (size <= sysctl_optmem_max &&
+	    atomic_read(&sk->sk_omem_alloc) + size < sysctl_optmem_max) {
+		atomic_inc(&fp->refcnt);
+		atomic_add(size, &sk->sk_omem_alloc);
+		return true;
+	}
+	return false;
 }
 
 /*
@@ -2354,8 +2372,6 @@ extern int net_msg_warn;
 
 extern __u32 sysctl_wmem_max;
 extern __u32 sysctl_rmem_max;
-
-extern int sysctl_optmem_max;
 
 extern __u32 sysctl_wmem_default;
 extern __u32 sysctl_rmem_default;

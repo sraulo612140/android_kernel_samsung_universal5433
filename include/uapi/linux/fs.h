@@ -11,6 +11,11 @@
 #include <linux/types.h>
 
 /*
+ * Flags for renameat2.
+ */
+#define RENAME_NOREPLACE	(1 << 0)	/* Don't overwrite target */
+
+/*
  * It's silly to have NR_OPEN bigger than NR_FILE, but you can change
  * the file limit at runtime and only root can increase the per-process
  * nr_file rlimit, so it's safe to set up a ridiculously high absolute

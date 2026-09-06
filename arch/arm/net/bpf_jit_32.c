@@ -2053,7 +2053,9 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 		/* there are 2 passes here */
 		bpf_jit_dump(prog->len, image_size, 2, ctx.target);
 
+	#ifdef CONFIG_DEBUG_RODATA
 	set_memory_ro((unsigned long)header, header->pages);
+#endif
 	prog->bpf_func = (void *)ctx.target;
 	prog->jited = 1;
 	prog->jited_len = image_size;
@@ -2080,7 +2082,9 @@ void bpf_jit_free(struct bpf_prog *prog)
 	if (!prog->jited)
 		goto free_filter;
 
+	#ifdef CONFIG_DEBUG_RODATA
 	set_memory_rw(addr, header->pages);
+#endif
 	bpf_jit_binary_free(header);
 
 free_filter:
