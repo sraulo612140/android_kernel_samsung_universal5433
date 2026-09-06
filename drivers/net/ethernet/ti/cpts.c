@@ -35,6 +35,12 @@ static struct sock_filter ptp_filter[] = {
 	PTP_FILTER
 };
 
+static struct sock_fprog ptp_prog = {
+	.len = ARRAY_SIZE(ptp_filter), .filter = ptp_filter,
+};
+
+static struct bpf_prog *ptp_insns __read_mostly;
+
 #define cpts_read32(c, r)	__raw_readl(&c->reg->r)
 #define cpts_write32(c, v, r)	__raw_writel(v, &c->reg->r)
 
@@ -300,7 +306,7 @@ static u64 cpts_find_ts(struct cpts *cpts, struct sk_buff *skb, int ev_type)
 	u64 ns = 0;
 	struct cpts_event *event;
 	struct list_head *this, *next;
-	unsigned int class = sk_run_filter(skb, ptp_filter);
+	unsigned int class = BPF_PROG_RUN(ptp_insns, skb);
 	unsigned long flags;
 	u16 seqid;
 	u8 mtype;
@@ -371,7 +377,7 @@ int cpts_register(struct device *dev, struct cpts *cpts,
 	int err, i;
 	unsigned long flags;
 
-	if (ptp_filter_init(ptp_filter, ARRAY_SIZE(ptp_filter))) {
+	if (bpf_prog_create(&ptp_insns, &ptp_prog)) {
 		pr_err("cpts: bad ptp filter\n");
 		return -EINVAL;
 	}
