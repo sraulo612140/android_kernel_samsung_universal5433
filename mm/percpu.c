@@ -843,6 +843,27 @@ void __percpu *__alloc_percpu(size_t size, size_t align)
 EXPORT_SYMBOL_GPL(__alloc_percpu);
 
 /**
+ * __alloc_percpu_gfp - allocate dynamic percpu area
+ * @size: size of area to allocate in bytes
+ * @align: alignment of area (max PAGE_SIZE)
+ * @gfp: allocation flags
+ *
+ * Allocate zero-filled percpu area of @size bytes aligned at @align.
+ * Might sleep.  Might trigger writeouts.
+ *
+ * CONTEXT:
+ * Does GFP_KERNEL allocation.
+ *
+ * RETURNS:
+ * Percpu pointer to the allocated area on success, NULL on failure.
+ */
+void __percpu *__alloc_percpu_gfp(size_t size, size_t align, gfp_t gfp)
+{
+	return pcpu_alloc(size, align, false);
+}
+EXPORT_SYMBOL_GPL(__alloc_percpu_gfp);
+
+/**
  * __alloc_reserved_percpu - allocate reserved percpu area
  * @size: size of area to allocate in bytes
  * @align: alignment of area (max PAGE_SIZE)

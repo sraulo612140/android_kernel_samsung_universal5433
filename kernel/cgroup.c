@@ -5394,6 +5394,30 @@ static struct cgroupfs_root *findBpfCg(void){
 
 }
 
+struct cgroup *cgroup_get_from_fd(int fd)
+{
+	struct file *f;
+	struct inode *inode;
+	struct cgroup *cgrp;
+
+	f = fget_raw(fd);
+	if (!f)
+		return ERR_PTR(-EBADF);
+
+	inode = f->f_dentry->d_inode;
+	/* check in cgroup filesystem dir */
+	if (inode->i_op != &cgroup_dir_inode_operations) {
+		fput(f);
+		return ERR_PTR(-EBADF);
+	}
+
+	cgrp = __d_cgrp(f->f_dentry);
+	atomic_inc(&cgrp->count);
+	fput(f);
+	return cgrp;
+}
+EXPORT_SYMBOL_GPL(cgroup_get_from_fd);
+
 void cgroup_sk_alloc(struct cgroup **skcg)
 {
 	struct cgroup *cgrp;

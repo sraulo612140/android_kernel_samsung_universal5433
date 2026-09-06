@@ -231,8 +231,9 @@ u64 notrace ktime_get_boot_fast_ns(void)
 	struct timekeeper *tk = &timekeeper;
 	u64 mono;
 
-	mono = ktime_to_ns(timespec_to_ktime(tk->xtime)) + ktime_to_ns(timespec_to_ktime(tk->wall_to_monotonic));
-	return (mono + ktime_to_ns(tk->offs_boot));
+	mono = (tk->xtime_sec * NSEC_PER_SEC) + (tk->xtime_nsec >> tk->shift);
+	mono += ktime_to_ns(timespec_to_ktime(tk->wall_to_monotonic));
+	return mono + ktime_to_ns(tk->offs_boot);
 }
 EXPORT_SYMBOL_GPL(ktime_get_boot_fast_ns);
 
