@@ -103,10 +103,15 @@ static inline void syscall_set_arguments(struct task_struct *task,
 	memcpy(&regs->ARM_r0 + i, args, n * sizeof(args[0]));
 }
 
-static inline int syscall_get_arch(void)
+static inline int syscall_get_arch(struct task_struct *task,
+				    struct pt_regs *regs)
 {
 	/* ARM tasks don't change audit architectures on the fly. */
+#ifdef __ARMEB__
+	return AUDIT_ARCH_ARMEB;
+#else
 	return AUDIT_ARCH_ARM;
+#endif
 }
 
 #endif /* _ASM_ARM_SYSCALL_H */
