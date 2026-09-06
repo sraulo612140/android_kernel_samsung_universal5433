@@ -56,6 +56,20 @@ static inline void prandom_seed_state(struct rnd_state *state, u64 seed)
 	state->s3 = __seed(i, 16);
 }
 
+/**
+ * prandom_seed_full_state - set a fully independent seed for a PRNG state
+ * @state: pointer to state structure to receive the seed.
+ *
+ * Seed each state from the entropy pool and mix in a few generated values
+ * so that consecutive seeds show no correlation.
+ */
+static inline void prandom_seed_full_state(struct rnd_state *state)
+{
+	prandom_seed_state(state, get_random_long());
+	prandom_u32_state(state);
+	prandom_u32_state(state);
+}
+
 #ifdef CONFIG_ARCH_RANDOM
 # include <asm/archrandom.h>
 #else
