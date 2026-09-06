@@ -58,6 +58,9 @@ extern int mmap_rnd_compat_bits __read_mostly;
 extern unsigned long sysctl_user_reserve_kbytes;
 extern unsigned long sysctl_admin_reserve_kbytes;
 
+void *kvmalloc(size_t size, gfp_t flags);
+void *kvzalloc(size_t size, gfp_t flags);
+
 #define nth_page(page,n) pfn_to_page(page_to_pfn((page)) + (n))
 
 /* to align the pointer to the (next) page boundary */

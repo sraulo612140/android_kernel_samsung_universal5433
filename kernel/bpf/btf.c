@@ -4,6 +4,7 @@
 #include <uapi/linux/btf.h>
 #include <linux/types.h>
 #include <linux/refcount.h>
+#include <linux/mm.h>
 #include <linux/seq_file.h>
 #include <linux/compiler.h>
 #include <linux/ctype.h>

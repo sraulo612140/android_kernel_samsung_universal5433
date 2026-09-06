@@ -15,6 +15,36 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/kmem.h>
 
+void *kvmalloc(size_t size, gfp_t flags)
+{
+	void *ret;
+
+	ret = kmalloc(size, flags | __GFP_NOWARN);
+	if (ret || size <= PAGE_SIZE)
+		return ret;
+
+	return __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+}
+EXPORT_SYMBOL(kvmalloc);
+
+void *kvzalloc(size_t size, gfp_t flags)
+{
+	void *ret;
+
+	ret = kmalloc(size, flags | __GFP_NOWARN);
+	if (ret)
+		return ret;
+
+	if (size <= PAGE_SIZE)
+		return NULL;
+
+	ret = __vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL);
+	if (ret)
+		memset(ret, 0, size);
+	return ret;
+}
+EXPORT_SYMBOL(kvzalloc);
+
 /**
  * kstrdup - allocate space for and copy an existing string
  * @s: the string to duplicate
