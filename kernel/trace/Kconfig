@@ -420,7 +420,7 @@ config KPROBE_EVENT
 	  Those events can be inserted wherever kprobes can probe, and record
 	  various register and memory values.
 
-This option is also required by perf-probe subcommand of perf tools.
+	  This option is also required by perf-probe subcommand of perf tools.
 	  If you want to use perf tools, this option is strongly recommended.
 
 config UPROBE_EVENT

@@ -636,8 +636,8 @@ config NET_ACT_CSUM
 	  Say Y here to update some common checksum after some direct
 	  packet alterations.
 
-To compile this code as a module, choose M here: the
- 	  module will be called act_csum.
+	  To compile this code as a module, choose M here: the
+	  module will be called act_csum.
 
 config NET_ACT_BPF
         tristate "BPF based action"
