@@ -610,6 +610,16 @@ static inline int hlist_empty(const struct hlist_head *h)
 	return !h->first;
 }
 
+/*
+ * Check whether the node is the only node of the head without
+ * accessing head:
+ */
+static inline bool hlist_is_singular_node(struct hlist_node *n,
+					  struct hlist_head *h)
+{
+	return !n->next && n->pprev == &h->first;
+}
+
 static inline void __hlist_del(struct hlist_node *n)
 {
 	struct hlist_node *next = n->next;
@@ -736,6 +746,18 @@ static inline void hlist_move_list(struct hlist_head *old,
  * @member:	the name of the hlist_node within the struct.
  */
 #define hlist_for_each_entry_safe(pos, n, head, member) 		\
+	for (pos = hlist_entry_safe((head)->first, typeof(*pos), member);\
+	     pos && ({ n = pos->member.next; 1; });			\
+	     pos = hlist_entry_safe(n, typeof(*pos), member))
+
+/**
+ * hlist_for_each_entry_safe_new - iterate over list of given type safe against removal of list entry
+ * @pos:	the type * to use as a loop cursor.
+ * @n:		another &struct hlist_node to use as temporary storage
+ * @head:	the head for your list.
+ * @member:	the name of the hlist_node within the struct.
+ */
+#define hlist_for_each_entry_safe_new(pos, n, head, member) 		\
 	for (pos = hlist_entry_safe((head)->first, typeof(*pos), member);\
 	     pos && ({ n = pos->member.next; 1; });			\
 	     pos = hlist_entry_safe(n, typeof(*pos), member))
