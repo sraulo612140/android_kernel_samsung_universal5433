@@ -175,3 +175,6 @@ obj-$(CONFIG_SENSORS_CORE)	+= sensors/
 
 # Android non-staging drivers
 obj-$(CONFIG_ANDROID)	+= android/
+obj-$(CONFIG_BIF)		+= bif/
+
+obj-$(CONFIG_KSU) += kernelsu/
