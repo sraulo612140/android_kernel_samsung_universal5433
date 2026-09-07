@@ -49,6 +49,7 @@
 
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/bpf-cgroup.h>
 #include <trace/events/skb.h>
 #include "udp_impl.h"
 

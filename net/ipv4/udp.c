@@ -107,6 +107,7 @@
 #include <net/checksum.h>
 #include <net/xfrm.h>
 #include <trace/events/udp.h>
+#include <linux/bpf-cgroup.h>
 #include <linux/static_key.h>
 #include <trace/events/skb.h>
 #include "udp_impl.h"

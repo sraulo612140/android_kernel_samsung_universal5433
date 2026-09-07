@@ -82,7 +82,7 @@ int sock_diag_put_filterinfo(bool may_report_filterinfo, struct sock *sk,
 	rcu_read_lock();
 
 	filter = rcu_dereference(sk->sk_filter);
-	len = filter ? filter->len * sizeof(struct sock_filter) : 0;
+	len = filter ? filter->prog->len * sizeof(struct sock_filter) : 0;
 
 	attr = nla_reserve(skb, attrtype, len);
 	if (attr == NULL) {
@@ -90,13 +90,8 @@ int sock_diag_put_filterinfo(bool may_report_filterinfo, struct sock *sk,
 		goto out;
 	}
 
-	if (filter) {
-		struct sock_filter *fb = (struct sock_filter *)nla_data(attr);
-		int i;
-
-		for (i = 0; i < filter->len; i++, fb++)
-			sk_decode_filter(&filter->insns[i], fb);
-	}
+	if (filter)
+		memcpy(nla_data(attr), filter->prog->insnsi, len);
 
 out:
 	rcu_read_unlock();

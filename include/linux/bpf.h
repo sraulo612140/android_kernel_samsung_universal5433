@@ -490,7 +490,7 @@ u32 bpf_tcp_sock_convert_ctx_access(enum bpf_access_type type,
 #else
 static inline bool bpf_tcp_sock_is_valid_access(int off, int size,
 						enum bpf_access_type type,
-						struct bpf_insn_access_aux *info)
+						enum bpf_reg_type *reg_type)
 {
 	return false;
 }

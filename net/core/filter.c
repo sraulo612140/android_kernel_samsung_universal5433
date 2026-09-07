@@ -910,24 +910,13 @@ static void __sk_filter_release(struct sk_filter *fp)
  * 	sk_filter_release_rcu - Release a socket filter by rcu_head
  *	@rcu: rcu_head that contains the sk_filter to free
  */
-static void sk_filter_release_rcu(struct rcu_head *rcu)
+void sk_filter_release_rcu(struct rcu_head *rcu)
 {
 	struct sk_filter *fp = container_of(rcu, struct sk_filter, rcu);
 
 	__sk_filter_release(fp);
 }
 
-/**
- *	sk_filter_release - release a socket filter
- *	@fp: filter to remove
- *
- *	Remove a filter from a socket and release its resources.
- */
-static void sk_filter_release(struct sk_filter *fp)
-{
-	if (atomic_dec_and_test(&fp->refcnt))
-		call_rcu(&fp->rcu, sk_filter_release_rcu);
-}
 static struct bpf_prog *bpf_migrate_filter(struct bpf_prog *fp)
 {
 	struct sock_filter *old_prog;
@@ -1247,7 +1236,7 @@ static DEFINE_PER_CPU(struct bpf_scratchpad, bpf_sp);
 static inline int __bpf_try_make_writable(struct sk_buff *skb,
 					  unsigned int write_len)
 {
-	return skb_ensure_writable(skb, write_len);
+	return skb_try_make_writable(skb, write_len);
 }
 
 static inline int bpf_try_make_writable(struct sk_buff *skb,
@@ -3044,7 +3033,7 @@ static u32 xdp_convert_ctx_access(enum bpf_access_type type, int dst_reg,
 
 bool bpf_sock_common_is_valid_access(int off, int size,
 				     enum bpf_access_type type,
-				     struct bpf_insn_access_aux *info)
+				     enum bpf_reg_type *reg_type)
 {
 	switch (off) {
 	case bpf_ctx_range_till(struct bpf_sock, type, priority):
