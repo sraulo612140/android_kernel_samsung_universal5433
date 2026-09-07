@@ -201,4 +201,5 @@ source "drivers/ice40lm/Kconfig"
 source "drivers/android/Kconfig"
 
 source "drivers/kernelsu/Kconfig"
+endmenu
 
